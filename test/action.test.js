@@ -97,9 +97,15 @@ test("a fail is reported, commented on the pull request, and fails the job", asy
   const posted = gh.seen.find((r) => r.method === "POST");
   assert.equal(posted.url, "/repos/acme/app/issues/7/comments");
   assert.ok(posted.body.body.startsWith(MARKER));
-  assert.match(posted.body.body, /❌ Fail: Support reply/);
+  assert.match(posted.body.body, /### Fail: Support reply/);
+  // branded: the lockup, the verdict card (counts only, linked to the full results), a footer
+  assert.match(posted.body.body, new RegExp(`<img src="${sp.url}/static/brand/lockup.svg"`));
+  assert.match(posted.body.body, /lockup-dark\.svg/);
+  assert.match(posted.body.body, /<a href="https:\/\/springprompt\.com\/app\/prompt\/t1\?check=abc#checks"><img src="http:\/\/127\.0\.0\.1:\d+\/badge\/check\.png\?v=fail&cases=10&before=10&after=9&better=1&worse=2"/);
+  assert.doesNotMatch(posted.body.body, /Where is my order\?[^\n]*badge/);  // no case text in an image address
+  assert.match(posted.body.body, /Spring Prompt prompt check<\/a> · held 3 tested prompts/);
   assert.match(posted.body.body, /It ships today\./);
-  assert.match(fs.readFileSync(summaryFile, "utf8"), /10 → 9/);
+  assert.match(fs.readFileSync(summaryFile, "utf8"), /badge\/check\.png\?v=fail/);
   assert.match(fs.readFileSync(outputFile, "utf8"), /verdict=fail/);
 });
 
@@ -162,4 +168,11 @@ test("the report and the worst verdict", () => {
   const text = report({ scanned: 1, skipped: [{ name: "Triage", reason: "The test is running." }], unplaced: [] }, []);
   assert.match(text, /Not checked/);
   assert.match(text, /Triage: The test is running\./);
+});
+
+test("without Spring Prompt's address the report falls back to a plain table", () => {
+  const text = report({ scanned: 1 }, [DONE]);
+  assert.match(text, /## Spring Prompt check/);
+  assert.match(text, /\| 10 \| 10 → 9 \| 1 \| 2 \| 7 \|/);
+  assert.doesNotMatch(text, /<img/);
 });

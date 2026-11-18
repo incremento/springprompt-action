@@ -124,7 +124,26 @@ async function waitFor(base, key, check, until) {
 
 // --- The report ---------------------------------------------------------------------------
 
-const LABEL = { pass: "✅ Pass", review: "⚠️ Review", fail: "❌ Fail" };
+const LABEL = { pass: "Pass", review: "Review", fail: "Fail" };
+const DOCS = "/docs/check-before-merge";
+
+// The verdict card: a picture drawn by Spring Prompt from the verdict and counts alone, so
+// nothing of the prompt or its answers is ever in an image address.
+function card(base, check) {
+  const n = check.numbers || {};
+  if (!check.verdict || !n.cases) return "";
+  const q = new URLSearchParams({
+    v: check.verdict, cases: n.cases, before: n.baseline_passed, after: n.candidate_passed,
+    better: n.cases_better, worse: n.cases_worse,
+  });
+  const alt = `${LABEL[check.verdict] || check.verdict}: ${n.baseline_passed} of ${n.cases} cases passed every must check before the change, ${n.candidate_passed} after. ${n.cases_better} better, ${n.cases_worse} worse.`;
+  const img = `<img src="${base}/badge/check.png?${q}" width="600" alt="${escape(alt)}">`;
+  return check.url ? `<a href="${check.url}">${img}</a>` : img;
+}
+
+function header(base) {
+  return `<a href="${base}${DOCS}"><picture><source media="(prefers-color-scheme: dark)" srcset="${base}/static/brand/lockup-dark.svg"><img src="${base}/static/brand/lockup.svg" height="26" alt="Spring Prompt"></picture></a>`;
+}
 
 function fence(text) {
   const longest = Math.max(2, ...(String(text).match(/`+/g) || []).map((s) => s.length));
@@ -137,16 +156,18 @@ function quote(text) {
   return fence(t);
 }
 
-function one(check) {
+function one(check, base = "") {
   const lines = [];
   const where = check.files && check.files.length ? ` · \`${check.files.join("`, `")}\`` : "";
   const head = check.verdict ? LABEL[check.verdict] || check.verdict : "No verdict";
   lines.push(`### ${head}: ${check.name}${where}`);
   lines.push("");
   if (check.status === "done") {
+    const picture = base ? card(base, check) : "";
+    if (picture) lines.push(picture, "");
     lines.push(check.summary || "");
     const n = check.numbers || {};
-    if (n.cases) {
+    if (n.cases && !picture) {
       lines.push("");
       lines.push(`| Cases | Pass every must check | Better | Worse | Same |`);
       lines.push(`| --- | --- | --- | --- | --- |`);
@@ -183,12 +204,12 @@ function escape(text) {
   return String(text || "").replace(/[<>]/g, (c) => (c === "<" ? "&lt;" : "&gt;")).slice(0, 200);
 }
 
-function report(started, done) {
-  const lines = [MARKER, "## Spring Prompt check", ""];
+function report(started, done, base = "") {
+  const lines = [MARKER, base ? header(base) : "## Spring Prompt check", ""];
   if (!done.length) {
     lines.push(started.summary || "No tested prompt's wording changed in this pull request.");
   }
-  for (const c of done) lines.push(one(c), "");
+  for (const c of done) lines.push(one(c, base), "");
   const skipped = started.skipped || [];
   if (skipped.length) {
     lines.push("**Not checked**", "");
@@ -201,7 +222,8 @@ function report(started, done) {
     for (const u of unplaced) lines.push(`- ${u.name} (\`${u.where}\`): ${u.reason}`);
     lines.push("");
   }
-  lines.push(`<sub>Checked ${started.scanned ?? 0} tested prompt${started.scanned === 1 ? "" : "s"} against this diff. Test cases and baselines come from your Spring Prompt account.</sub>`);
+  const docs = base ? `<a href="${base}${DOCS}">Spring Prompt prompt check</a>` : "Spring Prompt prompt check";
+  lines.push("---", `<sub>${docs} · held ${started.scanned ?? 0} tested prompt${started.scanned === 1 ? "" : "s"} to this diff, on your own test cases. The comment updates on each push.</sub>`);
   return lines.join("\n");
 }
 
@@ -283,7 +305,7 @@ async function main() {
   const started = res.data;
   console.log(started.summary);
   const done = await Promise.all((started.checks || []).map((c) => waitFor(base, key, c, until)));
-  const text = report(started, done);
+  const text = report(started, done, base);
   summary(text);
   console.log(text);
   if (input("comment", "true") !== "false" && (done.length || (started.unplaced || []).length)) {
