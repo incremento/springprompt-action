@@ -188,7 +188,7 @@ test("side by side, suggested fixes, rubrics and the link into the app", () => {
   const text = report({ scanned: 1 }, [check], "https://springprompt.com");
   assert.match(text, /badge\/check\.png\?v=fail&cases=10&before=10&after=9&better=1&worse=2&sn=1&ss=6"/);
   assert.match(text, /new answer was preferred on 1, the old on 6/);
-  assert.match(text, /\*\*\[Open the full results in Spring Prompt →\]\(https:\/\/springprompt\.com\/app\/prompt\/t1\?check=abc#checks\)\*\*/);
+  assert.match(text, /\*\*\[Open this check in Spring Prompt →\]\(https:\/\/springprompt\.com\/app\/prompt\/t1\?check=abc#checks\)\*\*/);
   assert.match(text, /#### How to fix it\n\nThe new line asks for detail/);
   assert.match(text, /- replace "explain everything" with "answer in two sentences"\. _keeps the warmth/);
   assert.match(text, /\| How warm it reads \| 2\.4 of 4 \| 1\.6 of 4 \|/);

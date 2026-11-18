@@ -180,7 +180,7 @@ function one(check, base = "") {
       lines.push("");
     }
     if (check.url) {
-      lines.push(`**[Open the full results in Spring Prompt →](${check.url})** every case, both answers, each check and the judge's reasons${check.cost_usd != null ? ` · this check cost $${Number(check.cost_usd).toFixed(2)}` : ""}`, "");
+      lines.push(`**[Open this check in Spring Prompt →](${check.url})** the test's cases and saved answers, this check's results and fixes (signed in as the test's owner)${check.cost_usd != null ? ` · this check cost $${Number(check.cost_usd).toFixed(2)}` : ""}`, "");
     }
     lines.push(check.summary || "");
     for (const r of (check.reasons || []).slice(1)) lines.push(`- ${r}`);
