@@ -129,14 +129,21 @@ const DOCS = "/docs/check-before-merge";
 
 // The verdict card: a picture drawn by Spring Prompt from the verdict and counts alone, so
 // nothing of the prompt or its answers is ever in an image address.
+function pct(n, of) {
+  return of ? `${Math.round((100 * n) / of)}%` : "–";
+}
+
 function card(base, check) {
   const n = check.numbers || {};
   if (!check.verdict || !n.cases) return "";
+  const side = n.side_by_side && n.side_by_side.n ? n.side_by_side : null;
   const q = new URLSearchParams({
     v: check.verdict, cases: n.cases, before: n.baseline_passed, after: n.candidate_passed,
     better: n.cases_better, worse: n.cases_worse,
+    ...(side ? { sn: side.new, ss: side.saved } : {}),
   });
-  const alt = `${LABEL[check.verdict] || check.verdict}: ${n.baseline_passed} of ${n.cases} cases passed every must check before the change, ${n.candidate_passed} after. ${n.cases_better} better, ${n.cases_worse} worse.`;
+  let alt = `${LABEL[check.verdict] || check.verdict}: ${pct(n.baseline_passed, n.cases)} of ${n.cases} cases passed every must check before the change, ${pct(n.candidate_passed, n.cases)} after.`;
+  alt += side ? ` Side by side, the new answer was preferred on ${side.new}, the old on ${side.saved}.` : ` ${n.cases_better} better, ${n.cases_worse} worse.`;
   const img = `<img src="${base}/badge/check.png?${q}" width="600" alt="${escape(alt)}">`;
   return check.url ? `<a href="${check.url}">${img}</a>` : img;
 }
@@ -163,31 +170,46 @@ function one(check, base = "") {
   lines.push(`### ${head}: ${check.name}${where}`);
   lines.push("");
   if (check.status === "done") {
+    const n = check.numbers || {};
     const picture = base ? card(base, check) : "";
     if (picture) lines.push(picture, "");
-    lines.push(check.summary || "");
-    const n = check.numbers || {};
     if (n.cases && !picture) {
-      lines.push("");
       lines.push(`| Cases | Pass every must check | Better | Worse | Same |`);
       lines.push(`| --- | --- | --- | --- | --- |`);
-      lines.push(`| ${n.cases} | ${n.baseline_passed} → ${n.candidate_passed} | ${n.cases_better} | ${n.cases_worse} | ${n.cases_same} |`);
+      lines.push(`| ${n.cases} | ${pct(n.baseline_passed, n.cases)} → ${pct(n.candidate_passed, n.cases)} | ${n.cases_better} | ${n.cases_worse} | ${n.cases_same} |`);
+      lines.push("");
     }
+    if (check.url) {
+      lines.push(`**[Open the full results in Spring Prompt →](${check.url})** every case, both answers, each check and the judge's reasons${check.cost_usd != null ? ` · this check cost $${Number(check.cost_usd).toFixed(2)}` : ""}`, "");
+    }
+    lines.push(check.summary || "");
     for (const r of (check.reasons || []).slice(1)) lines.push(`- ${r}`);
+    const advice = check.advice || {};
+    if (advice.why || (advice.fixes || []).length) {
+      lines.push("", "#### How to fix it", "");
+      if (advice.why) lines.push(advice.why, "");
+      for (const f of advice.fixes || []) lines.push(`- ${f.change}${f.because ? `. _${f.because}_` : ""}`);
+      lines.push("", "<sub>Suggested by a model from the checks that failed and the answers above. Try one, push, and this check runs again.</sub>");
+    }
+    const rubrics = n.rubrics || [];
+    if (rubrics.length) {
+      lines.push("", "#### Rubrics", "", "| Quality | Before | After |", "| --- | --- | --- |");
+      for (const r of rubrics) lines.push(`| ${escape(r.check)} | ${r.before} of ${r.top} | ${r.after} of ${r.top} |`);
+    }
   } else {
     lines.push(check.error || "There is no verdict. Run the job again.");
   }
   for (const note of check.notes || []) lines.push(`- ${note}`);
-  if (check.diff) {
-    lines.push("", "<details><summary>What changed in the prompt</summary>", "", fence(check.diff).replace(/^```+/, (m) => m + "diff"), "", "</details>");
-  }
   const regressions = check.regressions || [];
   if (regressions.length) {
-    lines.push("", "<details><summary>Checks that now fail</summary>", "");
+    lines.push("", `<details><summary>Checks that now fail (${regressions.length})</summary>`, "");
     for (const r of regressions) {
-      lines.push(`- Case ${r.case} (${r.input}): **${r.check}**${r.detail ? ` — ${r.detail}` : ""}`);
+      lines.push(`- Case ${r.case} (${escape(r.input)}): **${r.check}**${r.detail ? `: ${r.detail}` : ""}`);
     }
     lines.push("", "</details>");
+  }
+  if (check.diff) {
+    lines.push("", "<details><summary>What changed in the prompt</summary>", "", fence(check.diff).replace(/^```+/, (m) => m + "diff"), "", "</details>");
   }
   for (const e of check.examples || []) {
     const what = { worse: "got worse", better: "got better", different: "changed" }[e.change] || "changed";
@@ -196,7 +218,6 @@ function one(check, base = "") {
     if (e.cut) lines.push("", "_Answers shortened._");
     lines.push("", "</details>");
   }
-  if (check.url) lines.push("", `[Every case, side by side](${check.url})${check.cost_usd != null ? ` · cost $${Number(check.cost_usd).toFixed(2)}` : ""}`);
   return lines.join("\n");
 }
 

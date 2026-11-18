@@ -173,6 +173,24 @@ test("the report and the worst verdict", () => {
 test("without Spring Prompt's address the report falls back to a plain table", () => {
   const text = report({ scanned: 1 }, [DONE]);
   assert.match(text, /## Spring Prompt check/);
-  assert.match(text, /\| 10 \| 10 → 9 \| 1 \| 2 \| 7 \|/);
+  assert.match(text, /\| 10 \| 100% → 90% \| 1 \| 2 \| 7 \|/);
   assert.doesNotMatch(text, /<img/);
+});
+
+test("side by side, suggested fixes, rubrics and the link into the app", () => {
+  const check = {
+    ...DONE,
+    numbers: { ...DONE.numbers, side_by_side: { new: 1, saved: 6, tie: 3, n: 10 },
+               rubrics: [{ check: "How warm it reads", before: 2.4, after: 1.6, top: 4, cases: 10 }] },
+    advice: { why: "The new line asks for detail, so replies run long.",
+              fixes: [{ change: 'replace "explain everything" with "answer in two sentences"', because: "keeps the warmth, not the length" }] },
+  };
+  const text = report({ scanned: 1 }, [check], "https://springprompt.com");
+  assert.match(text, /badge\/check\.png\?v=fail&cases=10&before=10&after=9&better=1&worse=2&sn=1&ss=6"/);
+  assert.match(text, /new answer was preferred on 1, the old on 6/);
+  assert.match(text, /\*\*\[Open the full results in Spring Prompt →\]\(https:\/\/springprompt\.com\/app\/prompt\/t1\?check=abc#checks\)\*\*/);
+  assert.match(text, /#### How to fix it\n\nThe new line asks for detail/);
+  assert.match(text, /- replace "explain everything" with "answer in two sentences"\. _keeps the warmth/);
+  assert.match(text, /\| How warm it reads \| 2\.4 of 4 \| 1\.6 of 4 \|/);
+  assert.ok(text.indexOf("How to fix it") < text.indexOf("Checks that now fail"));
 });
