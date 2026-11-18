@@ -67,6 +67,6 @@ Full details, limits and costs: [springprompt.com/docs/check-before-merge](https
 - A check costs credit, about what running your test once on one model costs. Nothing is spent when no tested prompt changed.
 - Pull requests from forks cannot read repository secrets, so for them the action checks nothing and passes.
 - The diff is sent to Spring Prompt to find the changes (lock files and minified files left out) and is not kept.
-- This action has no dependencies: `index.js` is the whole of it. Its tests: `node --test test/`.
+- This action has no dependencies: `index.js` is the whole of it. Its tests: `node --test test/*.test.js`.
 
 MIT licence.
