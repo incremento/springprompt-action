@@ -1,0 +1,52 @@
+name: Spring Prompt check
+description: >-
+  Tests how a pull request's prompt changes move your app's answers, on your own test cases,
+  and fails the job when they get worse.
+author: Spring Prompt
+branding:
+  icon: check-circle
+  color: green
+inputs:
+  key:
+    description: >-
+      A Spring Prompt account key (Connect your agent in the app). Keep it in a repository
+      secret, such as SPRINGPROMPT_KEY.
+    required: true
+  test-ids:
+    description: >-
+      Saved Prompt tests to hold the diff against as well as your tested Live prompts, comma
+      or newline separated. Optional.
+    required: false
+    default: ""
+  fail-on:
+    description: "fail (default) fails the job only on a fail verdict; review fails it on review too."
+    required: false
+    default: fail
+  comment:
+    description: Post the result as a comment on the pull request, updated on each push.
+    required: false
+    default: "true"
+  max-spend-usd:
+    description: The most one check may cost, in dollars of credit. Optional.
+    required: false
+    default: ""
+  timeout-minutes:
+    description: How long to wait for the checks before giving up.
+    required: false
+    default: "20"
+  base-url:
+    description: Where Spring Prompt is.
+    required: false
+    default: https://springprompt.com
+  github-token:
+    description: Used to post the comment. Needs pull-requests write permission.
+    required: false
+    default: ${{ github.token }}
+outputs:
+  verdict:
+    description: The worst verdict across the checks (pass, review, fail), or none.
+  checks:
+    description: How many prompts were checked.
+runs:
+  using: node24
+  main: index.js
