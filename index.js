@@ -16,7 +16,28 @@ const EXCLUDE = [
   ":(exclude)**/package-lock.json", ":(exclude)**/yarn.lock", ":(exclude)**/pnpm-lock.yaml",
   ":(exclude)**/uv.lock", ":(exclude)**/poetry.lock", ":(exclude)**/Cargo.lock",
   ":(exclude)**/go.sum", ":(exclude)**/*.min.js", ":(exclude)**/*.map",
+  ":(exclude,glob).env", ":(exclude,glob)**/.env", ":(exclude,glob).env.*", ":(exclude,glob)**/.env.*",
+  ":(exclude,glob)*.pem", ":(exclude,glob)**/*.pem", ":(exclude,glob)*.key", ":(exclude,glob)**/*.key",
 ];
+const KEY_REMOVED = "[key removed]";
+const PRIVATE_KEY = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g;
+const KEYS = new RegExp(
+  [
+    "sk-[A-Za-z0-9_\\-]{16,}",
+    "AIza[0-9A-Za-z_\\-]{35}",
+    "(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{20,}",
+    "xox[abprs]-[A-Za-z0-9\\-]{10,}",
+    "AKIA[0-9A-Z]{16}",
+    "eyJ[A-Za-z0-9_\\-]{10,}\\.[A-Za-z0-9_\\-]{10,}\\.[A-Za-z0-9_\\-]{10,}",
+    "spg_[A-Za-z0-9_\\-]{20,}",
+    "bearer\\s+[A-Za-z0-9._\\-]{16,}",
+  ].join("|"),
+  "gi",
+);
+
+function scrubKeys(text) {
+  return String(text || "").replace(PRIVATE_KEY, KEY_REMOVED).replace(KEYS, KEY_REMOVED);
+}
 
 function input(name, fallback = "") {
   const raw = process.env[`INPUT_${name.replace(/ /g, "_").toUpperCase()}`];
@@ -73,7 +94,7 @@ function range(event) {
 }
 
 function diffOf(from, to) {
-  const text = git(["diff", "--no-color", "--no-ext-diff", "-U3", from, to, "--", ".", ...EXCLUDE]);
+  const text = scrubKeys(git(["diff", "--no-color", "--no-ext-diff", "-U3", from, to, "--", ".", ...EXCLUDE]));
   return text.length > MAX_DIFF ? text.slice(0, MAX_DIFF) : text;
 }
 
@@ -222,7 +243,9 @@ function one(check, base = "") {
 }
 
 function escape(text) {
-  return String(text || "").replace(/[<>]/g, (c) => (c === "<" ? "&lt;" : "&gt;")).slice(0, 200);
+  return String(text || "")
+    .replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c]))
+    .slice(0, 200);
 }
 
 function report(started, done, base = "") {
@@ -353,4 +376,4 @@ if (require.main === module) {
   );
 }
 
-module.exports = { report, worst, one, range, diffOf, list, MARKER };
+module.exports = { report, worst, one, range, diffOf, list, scrubKeys, escape, MARKER };

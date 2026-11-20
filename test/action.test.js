@@ -9,7 +9,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
-const { report, worst, MARKER } = require("../index.js");
+const { report, worst, scrubKeys, escape, MARKER } = require("../index.js");
 
 const ACTION = path.join(__dirname, "..", "index.js");
 
@@ -193,4 +193,26 @@ test("side by side, suggested fixes, rubrics and the link into the app", () => {
   assert.match(text, /- replace "explain everything" with "answer in two sentences"\. _keeps the warmth/);
   assert.match(text, /\| How warm it reads \| 2\.4 of 4 \| 1\.6 of 4 \|/);
   assert.ok(text.indexOf("How to fix it") < text.indexOf("Checks that now fail"));
+});
+
+test("secrets and .env files are excluded or scrubbed before sending the diff", async () => {
+  const { dir, before } = repo();
+  const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+  fs.writeFileSync(path.join(dir, ".env"), "OPENAI_API_KEY=sk-1234567890abcdefghij\n");
+  fs.writeFileSync(path.join(dir, "bot.py"), 'KEY = "sk-abcdefghijklmnop1234"\n');
+  git("add", ".");
+  git("commit", "-q", "-m", "add secrets");
+  const after = git("rev-parse", "HEAD");
+  const sp = await server(() => [200, { checks: [], skipped: [], unplaced: [], scanned: 0, summary: "ok" }]);
+  const event = path.join(dir, "event.json");
+  fs.writeFileSync(event, JSON.stringify({ before, after }));
+  const got = await run({ CWD: dir, INPUT_KEY: "k", "INPUT_BASE-URL": sp.url, GITHUB_EVENT_PATH: event });
+  sp.s.close();
+  assert.equal(got.code, 0, got.out);
+  const sentDiff = sp.seen[0].body.diff;
+  assert.doesNotMatch(sentDiff, /OPENAI_API_KEY/);
+  assert.doesNotMatch(sentDiff, /sk-abcdefghijklmnop1234/);
+  assert.match(sentDiff, /\[key removed\]/);
+  assert.equal(scrubKeys("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"), "[key removed]");
+  assert.equal(escape('bad "quote" <tag> & more'), "bad &quot;quote&quot; &lt;tag&gt; &amp; more");
 });
